@@ -1,0 +1,68 @@
+{
+  "name": "@pyo/sandbox",
+  "version": "0.4.0",
+  "description": "TypeScript SDK for Pyo Sandbox: isolated machines on your own servers, made on demand through an API.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "pyo",
+    "sandbox",
+    "firecracker",
+    "gvisor",
+    "ai",
+    "agents",
+    "code-interpreter"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:bun": "bun test test/",
+    "test:e2e": "PYO_SANDBOX_E2E=1 vitest run test/e2e.test.ts",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@ai-sdk/anthropic": "^4.0.105",
+    "@anthropic-ai/sdk": "^1.8.0",
+    "@types/node": "20",
+    "@types/ws": "^8.18.2",
+    "ai": "^7.0.173",
+    "tsup": "^9.0.0",
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.0",
+    "ws": "^8.23.0"
+  },
+  "peerDependencies": {
+    "ws": ">=8"
+  },
+  "peerDependenciesMeta": {
+    "ws": {
+      "optional": true
+    }
+  }
+}
