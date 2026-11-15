@@ -7,7 +7,7 @@
     "type": "git",
     "url": "git+https://github.com/upsetdev/pyo-sandbox-js.git"
   },
-  "homepage": "https://pyo.dev/docs/sandboxes",
+  "homepage": "https://pyo.dev/docs/sandbox",
   "bugs": {
     "url": "https://github.com/upsetdev/pyo-sandbox-js/issues"
   },
