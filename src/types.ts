@@ -53,6 +53,16 @@ export interface SandboxInfo {
   env: string[];
   /** The daemon URL of its server. */
   url: string | null;
+  /** Its server's edge proxy, where open ports are served. Null without one. */
+  edgeUrl?: string | null;
+  /** Ports open on the edge proxy, with their URLs. */
+  ports?: OpenPort[];
+  /**
+   * `getInfo()` and `connect()`: a fresh connection when the API key may use
+   * the sandbox and it lives, else null with `connectionNote` saying why.
+   */
+  connection?: Connection | null;
+  connectionNote?: string;
   error: string | null;
   createdBy: string | null;
   createdAt: number;
@@ -60,6 +70,19 @@ export interface SandboxInfo {
   expiresAt: number;
   pausedAt: number | null;
   endedAt: number | null;
+}
+
+/** A sandbox port on its server's edge proxy. */
+export interface OpenPort {
+  port: number;
+  /** A public port answers anyone. A private one needs a sandbox token. */
+  public: boolean;
+  url: string | null;
+}
+
+export interface OpenPortOptions {
+  /** `true` by default. A private port needs a sandbox token on each request. */
+  public?: boolean;
 }
 
 export interface ClientOptions {
@@ -83,7 +106,10 @@ export interface ClientOptions {
 }
 
 export interface CreateOptions extends ClientOptions {
-  /** The team's id. Defaults to `PYO_TEAM`. */
+  /**
+   * The team's id. Defaults to `PYO_TEAM`, else Pyo takes the API key's
+   * only team.
+   */
   teamId?: string;
   /** A sandbox template's name or id, like `node-22`. */
   template: string;
@@ -110,8 +136,8 @@ export interface CreateOptions extends ClientOptions {
 
 export interface ConnectOptions extends ClientOptions {
   /**
-   * The sandbox's env values, if you know them. Pyo keeps only the names,
-   * so commands over the WebSocket get them only when you pass them here.
+   * @deprecated The sandbox server now adds the sandbox's env to every
+   * command and terminal. Kept so older code still compiles. It does nothing.
    */
   env?: Record<string, string>;
 }

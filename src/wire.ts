@@ -169,7 +169,18 @@ export type Cmd = string | string[];
 
 export type Request =
   | { op: "ping" }
-  | { op: "exec"; cmd: Cmd; cwd?: string; env: Record<string, string>; stdin: boolean }
+  | {
+      op: "exec";
+      cmd: Cmd;
+      cwd?: string;
+      env: Record<string, string>;
+      stdin: boolean;
+      /**
+       * The daemon kills the command after this long and keeps at most 8 MiB
+       * of each output. 60 seconds when left out, no limits for 0.
+       */
+      timeoutMs?: number;
+    }
   | { op: "pty"; cmd?: Cmd; cwd?: string; env: Record<string, string>; cols: number; rows: number }
   | { op: "resize"; cols: number; rows: number }
   | { op: "signal"; signal: number }
@@ -203,13 +214,18 @@ export type EnvdErrorKind =
   | "invalidInput"
   | "busy"
   | "unsupported"
-  | "io";
+  | "io"
+  /** The daemon refused the request: the token ran out. */
+  | "unauthorized"
+  /** The daemon refused the request: the token doesn't allow it. */
+  | "forbidden";
 
 export type Response =
   | { type: "pong" }
   | { type: "ok" }
   | { type: "started"; pid: number }
-  | { type: "exit"; code?: number; signal?: number }
+  /** The daemon adds `timedOut` and `truncated` to a WebSocket exec's exit when they applied. */
+  | { type: "exit"; code?: number; signal?: number; timedOut?: boolean; truncated?: boolean }
   | { type: "written"; bytes: number }
   | { type: "entry"; entry: FileEntry }
   | { type: "entries"; entries: FileEntry[] }

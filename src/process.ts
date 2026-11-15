@@ -7,8 +7,10 @@ export const SIGKILL = 9;
 export const SIGTERM = 15;
 const KILL_GRACE_MS = 5_000;
 
+/** An error answer on a stream: the daemon's refusal, or envd's own. */
 export function sandboxError(r: Extract<Response, { type: "error" }>): PyoSandboxError {
-  return new PyoSandboxError(r.message, { source: "sandbox", code: r.kind });
+  const daemon = r.kind === "unauthorized" || r.kind === "forbidden";
+  return new PyoSandboxError(r.message, { source: daemon ? "server" : "sandbox", code: r.kind });
 }
 
 export function toBytes(data: string | Uint8Array | ArrayBuffer): Uint8Array {
@@ -160,7 +162,7 @@ export class CommandHandle extends Stream {
           this.pid = r.pid;
           this.accept();
         } else if (r.type === "exit") {
-          this.finish({ code: r.code ?? null, signal: r.signal });
+          this.finish({ code: r.code ?? null, signal: r.signal, timedOut: r.timedOut, truncated: r.truncated });
         } else if (r.type === "error") {
           this.fail(sandboxError(r));
         }
@@ -181,7 +183,12 @@ export class CommandHandle extends Stream {
       this.rejectDone(outcome);
       return;
     }
-    const { code, signal } = outcome as { code: number | null; signal?: number };
+    const { code, signal, timedOut, truncated } = outcome as {
+      code: number | null;
+      signal?: number;
+      timedOut?: boolean;
+      truncated?: boolean;
+    };
     const tailOut = this.outDec.decode();
     const tailErr = this.errDec.decode();
     if (tailOut) this.opts.onStdout?.(tailOut);
@@ -191,8 +198,8 @@ export class CommandHandle extends Stream {
       stderr: this.stderr + tailErr,
       exitCode: code,
       ...(signal === undefined ? {} : { signal }),
-      truncated: false,
-      timedOut: this.timedOut,
+      truncated: truncated ?? false,
+      timedOut: this.timedOut || (timedOut ?? false),
       durationMs: Date.now() - this.t0,
     });
   }

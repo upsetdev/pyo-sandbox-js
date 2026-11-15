@@ -101,7 +101,13 @@ export class Daemon {
     try {
       return await Session.open(this.WS, conn);
     } catch (e) {
-      // A refused upgrade carries no reason. Ask the daemon over HTTP why.
+      // The daemon closes a refused connection with 4000 + the HTTP status
+      // and the reason. A token that ran out gets one more try.
+      if (e instanceof PyoSandboxError && e.status !== undefined) {
+        if (e.status === 401) return Session.open(this.WS, await this.access.refresh());
+        throw e;
+      }
+      // No reason given: a proxy in between, most likely. Ask over HTTP.
       const why = await this.once(conn, "GET", "", {}).then(
         () => null,
         (err: unknown) => err,
@@ -112,6 +118,29 @@ export class Daemon {
       throw why ?? e;
     }
   }
+}
+
+/** The subprotocols the daemon takes: `pyo`, and the token as `pyo.token.<token>`. */
+export const WS_PROTOCOL = "pyo";
+export const WS_TOKEN_PROTOCOL = "pyo.token.";
+
+/**
+ * Why the WebSocket closed. The daemon refuses a connection by closing it
+ * with 4000 + the HTTP status (4401, 4403, 4404…) and the reason.
+ */
+export function closeError(code?: number, reason?: string): PyoSandboxError {
+  if (code !== undefined && code >= 4000 && code < 5000) {
+    const status = code - 4000;
+    return new PyoSandboxError(reason || `The sandbox server refused the connection (${status}).`, {
+      source: "server",
+      code: codeForStatus(status),
+      status,
+    });
+  }
+  return new PyoSandboxError(
+    `The WebSocket to the sandbox closed${code ? ` (${code}${reason ? `: ${reason}` : ""})` : ""}.`,
+    { source: "server", code: "closed" },
+  );
 }
 
 function trimSlash(s: string): string {
@@ -161,11 +190,12 @@ export class Session {
 
   static open(WS: WebSocketLike, conn: Connection): Promise<Session> {
     const base = trimSlash(conn.url).replace(/^http/, "ws");
-    // Browsers can't set headers on a WebSocket, so the token goes in the query.
-    const url = `${base}/v1/sandboxes/${encodeURIComponent(conn.sandboxId)}/connect?token=${encodeURIComponent(conn.token)}`;
+    // Browsers can't set headers on a WebSocket, so the token goes as a
+    // subprotocol, which keeps it out of URLs and logs.
+    const url = `${base}/v1/sandboxes/${encodeURIComponent(conn.sandboxId)}/connect`;
     let ws: WebSocketInstance;
     try {
-      ws = new WS(url);
+      ws = new WS(url, [WS_PROTOCOL, `${WS_TOKEN_PROTOCOL}${conn.token}`]);
     } catch (e) {
       return Promise.reject(clientError(`Couldn't open the WebSocket: ${(e as Error).message}`, "websocket", e));
     }
@@ -187,13 +217,7 @@ export class Session {
       };
       ws.onmessage = (ev) => s.receive(ev.data);
       ws.onerror = () => s.end(new PyoSandboxError("The WebSocket to the sandbox failed.", { source: "server", code: "websocket" }));
-      ws.onclose = (ev) =>
-        s.end(
-          new PyoSandboxError(
-            `The WebSocket to the sandbox closed${ev?.code ? ` (${ev.code}${ev.reason ? `: ${ev.reason}` : ""})` : ""}.`,
-            { source: "server", code: "closed" },
-          ),
-        );
+      ws.onclose = (ev) => s.end(closeError(ev?.code, ev?.reason));
     });
   }
 

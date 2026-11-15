@@ -10,6 +10,7 @@ import type {
   ExecOptions,
   ExecResult,
   ListOptions,
+  OpenPortOptions,
   PtyOptions,
   RemoveOptions,
   SandboxInfo,
@@ -27,7 +28,10 @@ export interface FromConnectionOptions extends ClientOptions {
    * that got their connection from your backend instead of an API key.
    */
   refreshToken?: () => Promise<Connection>;
-  /** The sandbox's env values, for commands over the WebSocket. */
+  /**
+   * @deprecated The sandbox server now adds the sandbox's env to every
+   * command and terminal. Kept so older code still compiles. It does nothing.
+   */
   env?: Record<string, string>;
 }
 
@@ -79,10 +83,10 @@ export class Sandbox implements Access {
   /** Creates a sandbox and returns it once Pyo has started it. */
   static async create(opts: CreateOptions): Promise<Sandbox> {
     const pyo = new PyoApi(opts);
+    // Without one, Pyo takes the API key's only team, or says to pass one.
     const teamId = opts.teamId ?? envTeam();
-    if (!teamId) throw clientError("Set PYO_TEAM or pass teamId: the team the sandbox belongs to.", "missingTeam");
     if (!opts.template) throw clientError("Pass a template, like \"node-22\".", "missingTemplate");
-    const body: Record<string, unknown> = { teamId, template: opts.template };
+    const body: Record<string, unknown> = { ...(teamId ? { teamId } : {}), template: opts.template };
     // Pyo refuses unknown fields, so only send what was given.
     const fields = [
       "cpus",
@@ -98,13 +102,15 @@ export class Sandbox implements Access {
     ] as const;
     for (const k of fields) if (opts[k] !== undefined) body[k] = opts[k];
     const res = await pyo.create(body);
-    return new Sandbox(res.connection, pyo, { ...opts, env: opts.env }, res.sandbox ?? undefined);
+    return new Sandbox(res.connection, pyo, opts, res.sandbox ?? undefined);
   }
 
   /** Reconnects to an existing sandbox with a fresh token. */
   static async connect(id: string, opts: ConnectOptions = {}): Promise<Sandbox> {
     const pyo = new PyoApi(opts);
-    const [conn, info] = await Promise.all([pyo.token(id), pyo.get(id)]);
+    const info = await pyo.get(id);
+    // getSandbox brings a connection when the key may use the sandbox.
+    const conn = info.connection ?? (await pyo.token(id));
     return new Sandbox(conn, pyo, opts, info);
   }
 
@@ -215,6 +221,8 @@ export class Sandbox implements Access {
       timeoutMs: opts.timeoutMs ?? 60_000,
       signal: opts.signal,
       stdin: opts.stdin !== undefined,
+      // The server's output cap applies, as for HTTP exec.
+      limited: true,
     }, opts.stdin === undefined ? undefined : toBytes(opts.stdin));
     return h.wait();
   }
@@ -229,7 +237,7 @@ export class Sandbox implements Access {
     return this.start(cmd, opts);
   }
 
-  private async start(cmd: Cmd, opts: SpawnOptions, stdin?: Uint8Array): Promise<CommandHandle> {
+  private async start(cmd: Cmd, opts: SpawnOptions & { limited?: boolean }, stdin?: Uint8Array): Promise<CommandHandle> {
     const session = await this.daemon.session();
     const h = new CommandHandle(session, opts);
     try {
@@ -238,9 +246,12 @@ export class Sandbox implements Access {
           op: "exec",
           cmd,
           ...(opts.cwd === undefined ? {} : { cwd: opts.cwd }),
-          // The daemon adds the sandbox's env only to plain HTTP exec.
-          env: { ...this.opts.env, ...opts.env },
+          // The server adds the sandbox's env under this one.
+          env: opts.env ?? {},
           stdin: opts.stdin === true,
+          // The server kills it after this long and caps its output. 0: no
+          // limits, for a spawned process that runs as long as it likes.
+          timeoutMs: opts.limited || opts.timeoutMs ? (opts.timeoutMs ?? 60_000) : 0,
         },
         stdin,
       );
@@ -259,7 +270,7 @@ export class Sandbox implements Access {
         op: "pty",
         ...(opts.cmd === undefined ? {} : { cmd: opts.cmd }),
         ...(opts.cwd === undefined ? {} : { cwd: opts.cwd }),
-        env: { ...this.opts.env, ...opts.env },
+        env: opts.env ?? {},
         cols: opts.cols ?? 80,
         rows: opts.rows ?? 24,
       });
@@ -307,8 +318,8 @@ export class Sandbox implements Access {
   }
 
   /** @internal */
-  openPortThroughPyo(port: number): Promise<{ url: string }> {
-    return this.needPyo("Opening a port").openPort(this.id, port);
+  openPortThroughPyo(port: number, isPublic: boolean): Promise<{ url: string }> {
+    return this.needPyo("Opening a port").openPort(this.id, port, isPublic);
   }
 }
 
@@ -389,14 +400,17 @@ export class Ports {
   ) {}
 
   /**
-   * A public URL for a port, through the sandbox server's HTTPS proxy.
-   * Throws a `PyoSandboxError` with code `unsupported` when this Pyo
-   * can't open ports yet.
+   * Opens a port on the sandbox server's edge proxy and returns its URL,
+   * like `https://3000-sbx-abc.sbx.example.com`. Public by default. A
+   * private port needs a sandbox token on each request (`X-Pyo-Token`, or
+   * once as `?pyo_token=` in a browser). Throws a `PyoSandboxError` with
+   * code `conflict` when the server has no edge proxy, and `unsupported`
+   * when this Pyo can't open ports yet.
    */
-  async open(port: number): Promise<string> {
+  async open(port: number, opts: OpenPortOptions = {}): Promise<string> {
     checkPort(port);
     try {
-      return (await this.sbx.openPortThroughPyo(port)).url;
+      return (await this.sbx.openPortThroughPyo(port, opts.public ?? true)).url;
     } catch (e) {
       if (isMissingRoute(e)) {
         throw new PyoSandboxError(

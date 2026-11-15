@@ -35,7 +35,7 @@ The SDK reads these when you don't pass them:
 |---|---|---|
 | `PYO_URL` | `baseUrl` | Your Pyo, like `https://pyo.example.com` |
 | `PYO_API_KEY` | `apiKey` | A Pyo API key with sandbox access. `PYO_TOKEN` works too. |
-| `PYO_TEAM` | `teamId` | The team the sandboxes belong to |
+| `PYO_TEAM` | `teamId` | The team the sandboxes belong to. `create` may leave it out when the API key has one team. |
 
 Pyo is the control plane only. It creates sandboxes, signs tokens and handles pause, resume, lifetime and delete. Commands, terminals and files go straight from your code to the sandbox server with a short-lived token, so Pyo is never in the hot path. The sandbox server answers on your tailnet, so the code that uses a sandbox runs on a machine in your tailnet.
 
@@ -93,7 +93,7 @@ await sbx.exec("npm test", { cwd: "/app", env: { CI: "1" }, timeoutMs: 300_000 }
 await sbx.exec("wc -c", { stdin: "some input" });
 ```
 
-A string runs with `/bin/sh -c`. A non-zero exit code is not an error. Commands time out after 60 seconds unless you say otherwise.
+A string runs with `/bin/sh -c`. A non-zero exit code is not an error. Commands get the sandbox's env, with `env` on top. They time out after 60 seconds unless you say otherwise, and keep at most 8 MiB of each output (`truncated` says when more was dropped). The sandbox server enforces both.
 
 Pass `onStdout` or `onStderr` to get output as it arrives, and an `AbortSignal` to stop a command:
 
@@ -106,7 +106,7 @@ await sbx.exec("npm install", {
 });
 ```
 
-`spawn` starts a command and returns at once, for servers and interactive input:
+`spawn` starts a command and returns at once, for servers and interactive input. It has no time limit or output cap unless you pass `timeoutMs`:
 
 ```ts
 const proc = await sbx.spawn("python3 -i", { stdin: true, onStdout: console.log });
@@ -146,9 +146,17 @@ Each call moves at most 64 MiB.
 
 ## Ports
 
-`ports.open` asks Pyo for a public HTTPS URL for a port, like `https://3000-sbx_abc.sandbox.example.com`. That needs the sandbox servers' HTTPS proxy. Until it ships, `ports.open` throws a `PyoSandboxError` with code `unsupported`.
+`ports.open` opens a port on the sandbox server's edge proxy and returns its URL, like `https://3000-sbx-abc.sbx.example.com`:
 
-`ports.connect` works today. It opens a TCP connection to a port inside the sandbox through the sandbox server, without any network in the sandbox:
+```ts
+await sbx.spawn("npx serve -l 3000");
+const url = await sbx.ports.open(3000);                       // public
+const admin = await sbx.ports.open(8080, { public: false });  // needs a sandbox token
+```
+
+A private port needs the sandbox token on each request, as `X-Pyo-Token`, or once as `?pyo_token=` in a browser. `sbx.info.ports` lists the open ports with their URLs. A server without an edge proxy refuses with code `conflict`.
+
+`ports.connect` opens a TCP connection to a port inside the sandbox through the sandbox server, without any network in the sandbox:
 
 ```ts
 const conn = await sbx.ports.connect(3000, { onData: (d) => process.stdout.write(d) });
@@ -184,11 +192,13 @@ try {
 } catch (e) {
   if (e instanceof PyoSandboxError) {
     e.source;  // "pyo", "server", "sandbox" or "client"
-    e.code;    // "notFound", "forbidden", "conflict", "unsupported", "noCapacity"…
+    e.code;    // "notFound", "forbidden", "permissionDenied", "conflict", "unsupported", "noCapacity"…
     e.status;  // the HTTP status, when there was one
   }
 }
 ```
+
+`forbidden` from the sandbox server means the token doesn't allow the call. `permissionDenied` means the sandbox itself refused, like a file its user can't read, so a new token won't help.
 
 ## Tools for AI agents
 
@@ -256,7 +266,7 @@ Pass the AI SDK's own `jsonSchema` helper, since this package doesn't import `ai
 
 - **Pyo** (`/api/v1/sandboxes…`, `Authorization: Bearer pyo_…`): create, connect, list, pause, resume, extend, delete, tokens and ports.
 - **The sandbox server** (`connection.url`, `Authorization: Bearer <sandbox token>`): plain `exec` and files over HTTP under `/v1/sandboxes/{id}`.
-- **The sandbox's WebSocket** (`/v1/sandboxes/{id}/connect`): streaming commands, `spawn`, terminals and port connections. It speaks envd's frame format, one frame per binary message: `[len u32 BE][kind u8][stream u32 BE][payload]`. envd sends `Hello` on stream 0 first, and the SDK picks the newest protocol version both sides speak. Each command gets its own WebSocket, closed when it ends. The codec is exported as `wire` for other tools.
+- **The sandbox's WebSocket** (`/v1/sandboxes/{id}/connect`): streaming commands, `spawn`, terminals and port connections. The token goes as the subprotocol `pyo.token.<token>`, next to `pyo`, so it stays out of URLs. A refused connection closes with code 4000 plus the HTTP status (4401, 4403…) and the reason. A terminal keeps working after its token runs out. It speaks envd's frame format, one frame per binary message: `[len u32 BE][kind u8][stream u32 BE][payload]`. envd sends `Hello` on stream 0 first, and the SDK picks the newest protocol version both sides speak. Each command gets its own WebSocket, closed when it ends. The codec is exported as `wire` for other tools.
 
 ## Development
 

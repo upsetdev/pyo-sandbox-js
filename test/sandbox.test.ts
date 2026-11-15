@@ -16,6 +16,8 @@ afterAll(() => stop());
 afterEach(() => {
   pyo.tokenTtlMs = 3_600_000;
   pyo.portsRoute = false;
+  pyo.teams = 1;
+  daemon.outputCap = 8 << 20;
   daemon.hello = { protocol: 1, minProtocol: 1, envdVersion: "mock-0.0.0" };
 });
 
@@ -79,7 +81,23 @@ describe("create and connect", () => {
     try {
       expect((await rejection(Sandbox.create({ template: "x" }))).code).toBe("missingBaseUrl");
       expect((await rejection(Sandbox.create({ baseUrl: pyo.url, template: "x" }))).code).toBe("missingApiKey");
-      expect((await rejection(Sandbox.create({ baseUrl: pyo.url, apiKey: API_KEY, template: "x" }))).code).toBe("missingTeam");
+    } finally {
+      process.env = saved;
+    }
+  });
+
+  it("leaves the team to Pyo when none is given", async () => {
+    const saved = { ...process.env };
+    delete process.env.PYO_TEAM;
+    try {
+      const opts = { baseUrl: pyo.url, apiKey: API_KEY, template: "node-22" };
+      const sbx = await Sandbox.create(opts);
+      expect(sbx.info?.teamId).toBe(TEAM);
+      expect(pyo.calls.at(-1)?.body).toEqual({ template: "node-22" });
+      pyo.teams = 2;
+      const e = await rejection(Sandbox.create(opts));
+      expect(e).toMatchObject({ source: "pyo", status: 400, code: "invalidRequest" });
+      expect(e.message).toMatch(/^Pass teamId/);
     } finally {
       process.env = saved;
     }
@@ -95,13 +113,16 @@ describe("create and connect", () => {
     expect(bad.status).toBe(401);
   });
 
-  it("reconnects to an existing sandbox with a new token", async () => {
-    const a = await create();
+  it("reconnects to an existing sandbox with the connection Pyo shows", async () => {
+    const a = await create({ env: { GREETING: "hi" } });
     const before = pyo.count("POST", /\/token$/);
     const b = await Sandbox.connect(a.id, { apiKey: API_KEY, baseUrl: pyo.url });
-    expect(pyo.count("POST", /\/token$/)).toBe(before + 1);
+    // getSandbox brings the connection, so no token call.
+    expect(pyo.count("POST", /\/token$/)).toBe(before);
     expect(b.info?.id).toBe(a.id);
     expect((await b.exec("echo back")).stdout).toBe("back\n");
+    // The server adds the sandbox's env, without the client knowing it.
+    expect((await b.exec("echo $GREETING", { transport: "websocket" })).stdout).toBe("hi\n");
   });
 
   it("lists a team's sandboxes", async () => {
@@ -259,7 +280,17 @@ describe("ports", () => {
   it("returns the URL once Pyo can", async () => {
     pyo.portsRoute = true;
     const sbx = await create();
-    expect(await sbx.ports.open(3000)).toBe(`https://3000-${sbx.id}.sandbox.example.com`);
+    const host = sbx.id.replace("_", "-");
+    expect(await sbx.ports.open(3000)).toBe(`https://3000-${host}.sandbox.example.com`);
+    expect(pyo.calls.at(-1)?.body).toEqual({ port: 3000, public: true });
+    expect(await sbx.ports.open(3001, { public: false })).toBe(`https://3001-${host}.sandbox.example.com`);
+    expect(pyo.calls.at(-1)?.body).toEqual({ port: 3001, public: false });
+    const info = await sbx.getInfo();
+    expect(info.ports).toEqual([
+      { port: 3000, public: true, url: `https://3000-${host}.sandbox.example.com` },
+      { port: 3001, public: false, url: `https://3001-${host}.sandbox.example.com` },
+    ]);
+    expect(info.edgeUrl).toBe("https://sandbox.example.com");
     expect((await rejection(sbx.ports.open(70000))).code).toBe("invalidOptions");
   });
 
@@ -379,6 +410,35 @@ describe("the WebSocket", () => {
     } finally {
       globalThis.WebSocket = saved;
     }
+  });
+
+  it("sends the token as a subprotocol, not in the URL", async () => {
+    const sbx = await create();
+    await sbx.exec("true", { transport: "websocket" });
+    expect(daemon.lastProtocol).toBe("pyo");
+    expect(daemon.lastUrlHadToken).toBe(false);
+    const ws = await create({ WebSocket: WsWebSocket as unknown as WebSocketLike });
+    await ws.exec("true", { transport: "websocket" });
+    expect(daemon.lastProtocol).toBe("pyo");
+  });
+
+  it("says why the server refused the WebSocket", async () => {
+    const a = await create();
+    const b = await create();
+    const crossed = Sandbox.fromConnection({ ...(await a.connection()), sandboxId: b.id }, { apiKey: "", baseUrl: "" });
+    const e = await rejection(crossed.exec("true", { transport: "websocket" }));
+    expect(e).toMatchObject({ source: "server", status: 403, code: "forbidden" });
+    expect(e.message).toBe("The sandbox token is for another sandbox.");
+  });
+
+  it("caps a command's output like HTTP exec", async () => {
+    daemon.outputCap = 10;
+    const sbx = await create();
+    const r = await sbx.exec("printf 0123456789abcdef", { transport: "websocket" });
+    expect(r).toMatchObject({ stdout: "0123456789", truncated: true, timedOut: false, exitCode: 0 });
+    // A spawned process has no limits unless it asks for a timeout.
+    const h = await sbx.spawn("printf 0123456789abcdef");
+    expect(await h.wait()).toMatchObject({ stdout: "0123456789abcdef", truncated: false });
   });
 
   it("closes when envd speaks no common protocol", async () => {

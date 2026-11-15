@@ -106,8 +106,8 @@ export class PyoApi {
     return this.call("DELETE", `/sandboxes/${encodeURIComponent(id)}`);
   }
 
-  openPort(id: string, port: number): Promise<{ url: string }> {
-    return this.call("POST", `/sandboxes/${encodeURIComponent(id)}/ports`, { port });
+  openPort(id: string, port: number, isPublic = true): Promise<{ url: string; port: number; public: boolean }> {
+    return this.call("POST", `/sandboxes/${encodeURIComponent(id)}/ports`, { port, public: isPublic });
   }
 }
 

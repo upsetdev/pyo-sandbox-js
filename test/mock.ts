@@ -41,7 +41,11 @@ interface MockSandbox {
   state: string;
   expiresAt: number;
   spec: Record<string, unknown>;
+  ports: Array<{ port: number; public: boolean }>;
 }
+
+/** The daemon's output cap for an exec, per output. */
+const EXEC_OUTPUT_CAP = 8 << 20;
 
 export interface DaemonEvent {
   kind: "http" | "ws" | "request";
@@ -73,11 +77,20 @@ export class MockDaemon {
   hello: Hello = { protocol: 1, minProtocol: 1, envdVersion: "mock-0.0.0" };
   /** Resize requests seen, per pty. */
   readonly resizes: Array<{ cols: number; rows: number }> = [];
+  /** The output cap of a WebSocket exec, like the daemon's 8 MiB. */
+  outputCap = EXEC_OUTPUT_CAP;
+  /** The subprotocol the last WebSocket got, and whether its URL had a token. */
+  lastProtocol = "";
+  lastUrlHadToken = false;
   url = "";
   private server = createServer((req, res) => {
     this.http(req, res).catch((e: Error) => json(res, 500, { type: "error", error: { code: "internal", message: e.message } }));
   });
-  private wss = new WebSocketServer({ noServer: true });
+  // Like the daemon: "pyo" when offered, else the token's own.
+  private wss = new WebSocketServer({
+    noServer: true,
+    handleProtocols: (protocols) => (protocols.has("pyo") ? "pyo" : ([...protocols][0] ?? false)),
+  });
   private sockets = new Set<WebSocket>();
 
   async start(): Promise<void> {
@@ -100,7 +113,11 @@ export class MockDaemon {
 
   private auth(req: IncomingMessage, url: URL, id: string, scope: Scope | null): TokenInfo | { status: number; error: string; code: string } {
     const h = req.headers.authorization;
-    const token = h?.startsWith("Bearer ") ? h.slice(7) : url.searchParams.get("token");
+    const proto = String(req.headers["sec-websocket-protocol"] ?? "")
+      .split(",")
+      .map((p) => p.trim())
+      .find((p) => p.startsWith("pyo.token."));
+    const token = proto ? proto.slice("pyo.token.".length) : h?.startsWith("Bearer ") ? h.slice(7) : url.searchParams.get("token");
     if (!token) return { status: 401, code: "unauthorized", error: "A sandbox token is needed." };
     const t = this.tokens.get(token);
     if (!t) return { status: 401, code: "unauthorized", error: "The sandbox token isn't valid." };
@@ -205,12 +222,18 @@ export class MockDaemon {
     const m = url.pathname.match(/^\/v1\/sandboxes\/([^/]+)\/connect$/);
     const id = m ? decodeURIComponent(m[1]!) : "";
     const a = m ? this.auth(req, url, id, null) : { status: 404, error: "no", code: "notFound" };
+    this.lastUrlHadToken = url.searchParams.has("token");
+    // Like the daemon: a refused connection is upgraded and closed at once
+    // with 4000 + the HTTP status and the reason.
     if ("status" in a) {
-      socket.end(`HTTP/1.1 ${a.status} Refused\r\ncontent-length: 0\r\n\r\n`);
+      this.wss.handleUpgrade(req, socket, head, (ws) => ws.close(4000 + a.status, a.error));
       return;
     }
     this.events.push({ kind: "ws", detail: id });
-    this.wss.handleUpgrade(req, socket, head, (ws) => this.session(ws, a, this.sandboxes.get(id)!));
+    this.wss.handleUpgrade(req, socket, head, (ws) => {
+      this.lastProtocol = ws.protocol;
+      this.session(ws, a, this.sandboxes.get(id)!);
+    });
   }
 
   private session(ws: WebSocket, token: TokenInfo, sbx: MockSandbox): void {
@@ -233,12 +256,16 @@ export class MockDaemon {
       if (f.kind === Kind.Request) {
         const req = parseJson<Request>(f);
         this.events.push({ kind: "request", detail: req.op });
-        // Like the daemon: every request is checked against the token.
-        if (Date.now() > token.exp) return respond(f.stream, { type: "error", kind: "permissionDenied", message: "The sandbox token has expired." });
+        // Like the daemon: every request is checked against the token, but a
+        // resize or signal on an open stream passes after it runs out.
+        const onOpen = (req.op === "resize" || req.op === "signal") && procs.has(f.stream);
+        if (!onOpen && Date.now() > token.exp) {
+          return respond(f.stream, { type: "error", kind: "unauthorized", message: "The sandbox token has expired." });
+        }
         const need: Partial<Record<Request["op"], Scope>> = { exec: "exec", pty: "pty", portConnect: "ports" };
         const scope = need[req.op];
         if (scope && !token.scopes.includes(scope)) {
-          return respond(f.stream, { type: "error", kind: "permissionDenied", message: `The sandbox token doesn't allow ${scope}.` });
+          return respond(f.stream, { type: "error", kind: "forbidden", message: `The sandbox token doesn't allow ${scope}.` });
         }
         this.request(f.stream, req, sbx, procs, send, respond);
       } else if (f.kind === Kind.Stdin) {
@@ -283,22 +310,52 @@ export class MockDaemon {
       const argv = typeof req.cmd === "string" ? ["/bin/sh", "-c", req.cmd] : req.cmd;
       const child = spawn(argv[0]!, argv.slice(1), {
         cwd: req.cwd ? this.local(req.cwd) : this.root,
-        // Like envd: the request's env only. The daemon adds the sandbox's env to plain HTTP exec only.
-        env: { PATH: process.env.PATH ?? "/usr/bin:/bin", ...req.env },
+        // The daemon adds the sandbox's env under the request's.
+        env: { PATH: process.env.PATH ?? "/usr/bin:/bin", ...sbx.env, ...req.env },
         stdio: [req.stdin ? "pipe" : "ignore", "pipe", "pipe"],
         detached: true,
       });
       procs.set(id, { child });
+      // Like the daemon: a timeout (60 s when left out, none for 0) and an
+      // output cap per output, then the exit says which applied.
+      const limit = req.timeoutMs ?? 60_000;
+      let timedOut = false;
+      let truncated = false;
+      const used = { out: 0, err: 0 };
+      const timer =
+        limit > 0
+          ? setTimeout(() => {
+              timedOut = true;
+              if (child.pid) process.kill(-child.pid, "SIGKILL");
+            }, limit)
+          : undefined;
+      const capped = (which: "out" | "err", d: Buffer): Uint8Array | null => {
+        if (limit === 0) return new Uint8Array(d);
+        const room = Math.max(0, this.outputCap - used[which]);
+        if (d.length > room) truncated = true;
+        const keep = d.subarray(0, room);
+        used[which] += keep.length;
+        return keep.length ? new Uint8Array(keep) : null;
+      };
       child.on("spawn", () => respond(id, { type: "started", pid: child.pid ?? 0 }));
       child.on("error", (e) => {
+        clearTimeout(timer);
         procs.delete(id);
         respond(id, { type: "error", kind: "notFound", message: e.message });
       });
-      child.stdout?.on("data", (d: Buffer) => send(frame(Kind.Stdout, id, new Uint8Array(d))));
-      child.stderr?.on("data", (d: Buffer) => send(frame(Kind.Stderr, id, new Uint8Array(d))));
+      child.stdout?.on("data", (d: Buffer) => {
+        const b = capped("out", d);
+        if (b) send(frame(Kind.Stdout, id, b));
+      });
+      child.stderr?.on("data", (d: Buffer) => {
+        const b = capped("err", d);
+        if (b) send(frame(Kind.Stderr, id, b));
+      });
       child.on("close", (code, signal) => {
+        clearTimeout(timer);
         procs.delete(id);
-        respond(id, signal ? { type: "exit", signal: signalNumber(signal) } : { type: "exit", code: code ?? 0 });
+        const exit: Response = signal ? { type: "exit", signal: signalNumber(signal) } : { type: "exit", code: code ?? 0 };
+        respond(id, timedOut || truncated ? { ...exit, timedOut, truncated } : exit);
       });
       return;
     }
@@ -318,7 +375,8 @@ export class MockDaemon {
         },
       });
       respond(id, { type: "started", pid: 4242 });
-      send(frame(Kind.Stdout, id, new TextEncoder().encode(`$ env FOO=${req.env.FOO ?? ""} ${req.cols}x${req.rows}\r\n`)));
+      const env = { ...sbx.env, ...req.env };
+      send(frame(Kind.Stdout, id, new TextEncoder().encode(`$ env FOO=${env.FOO ?? ""} ${req.cols}x${req.rows}\r\n`)));
       return;
     }
     if (req.op === "portConnect") {
@@ -391,6 +449,8 @@ export class MockPyo {
   tokenTtlMs = 3_600_000;
   /** Whether Pyo has the ports route yet. */
   portsRoute = false;
+  /** How many teams the API key can use. */
+  teams = 1;
   readonly calls: Array<{ method: string; path: string; body: unknown }> = [];
   private n = 0;
   private server = createServer((req, res) => {
@@ -438,6 +498,8 @@ export class MockPyo {
       pauseWhenIdleSecs: null,
       env: Object.keys(s.env).sort(),
       url: this.daemon.url,
+      edgeUrl: this.portsRoute ? "https://sandbox.example.com" : null,
+      ports: s.ports.map((p) => ({ ...p, url: `https://${p.port}-${s.id.replace("_", "-")}.sandbox.example.com` })),
       error: null,
       createdBy: "Test",
       createdAt: Date.now(),
@@ -470,8 +532,12 @@ export class MockPyo {
         const allowed = new Set(["teamId", "template", "cpus", "memoryMib", "diskMib", "ttl", "pauseWhenIdleSecs", "env", "network", "isolation", "labels", "projectId"]);
         const unknown = Object.keys(body ?? {}).find((k) => !allowed.has(k));
         if (unknown) return json(res, 422, { error: `unknown field \`${unknown}\`` });
-        if (!body?.teamId) return json(res, 422, { error: "missing field `teamId`" });
-        if (body.teamId !== TEAM) return json(res, 404, { error: "Team not found." });
+        // Like Pyo: the key's only team when teamId is left out.
+        if (body?.teamId === undefined && this.teams > 1) {
+          return json(res, 400, { error: `Pass teamId: the team the sandbox belongs to. You can use ${this.teams} teams.` });
+        }
+        if (body?.teamId !== undefined && body.teamId !== TEAM) return json(res, 404, { error: "Team not found." });
+        if (!body?.template) return json(res, 422, { error: "missing field `template`" });
         if (body.template === "missing") return json(res, 404, { error: "Sandbox template not found." });
         const id = `sbx_mock${String(++this.n).padStart(12, "0")}`;
         const s: MockSandbox = {
@@ -481,7 +547,8 @@ export class MockPyo {
           env: (body.env as Record<string, string>) ?? {},
           state: "running",
           expiresAt: Date.now() + 300_000,
-          spec: body,
+          spec: body ?? {},
+          ports: [],
         };
         this.daemon.sandboxes.set(id, s);
         return json(res, 201, { sandbox: this.view(s), connection: this.connection(id) });
@@ -492,8 +559,14 @@ export class MockPyo {
       }
       case "GET /sandboxes/{id}": {
         const s = needSbx();
-        if (s) json(res, 200, this.view(s));
-        return;
+        if (!s) return;
+        // Like Pyo: a fresh connection while it lives.
+        const live = s.state !== "stopped";
+        return json(res, 200, {
+          ...this.view(s),
+          connection: live ? this.connection(s.id) : null,
+          ...(live ? {} : { connectionNote: "The sandbox has ended." }),
+        });
       }
       case "POST /sandboxes/{id}/token": {
         const s = needSbx();
@@ -528,8 +601,11 @@ export class MockPyo {
       case "POST /sandboxes/{id}/ports": {
         if (!this.portsRoute) return json(res, 404, { error: "No such endpoint." });
         const s = needSbx();
-        if (s) json(res, 200, { url: `https://${body?.port}-${s.id}.sandbox.example.com` });
-        return;
+        if (!s) return;
+        const port = body?.port as number;
+        const isPublic = body?.public !== false;
+        s.ports = [...s.ports.filter((p) => p.port !== port), { port, public: isPublic }];
+        return json(res, 200, { url: `https://${port}-${s.id.replace("_", "-")}.sandbox.example.com`, port, public: isPublic });
       }
       default:
         return json(res, 404, { error: "No such endpoint." });
