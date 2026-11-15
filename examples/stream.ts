@@ -1,5 +1,5 @@
 // Streaming output, a background process, a terminal and a port connection.
-import { Sandbox } from "@pyo/sandbox";
+import { Sandbox } from "@pyodev/sandbox";
 
 const sbx = await Sandbox.create({ template: "node-22" });
 

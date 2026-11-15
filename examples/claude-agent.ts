@@ -1,7 +1,7 @@
 // An agent loop with the Claude API: Claude works in a sandbox through tools.
 // Needs ANTHROPIC_API_KEY (or `ant auth login`), PYO_URL, PYO_API_KEY and PYO_TEAM.
 import Anthropic from "@anthropic-ai/sdk";
-import { Sandbox, pyoSandboxTools } from "@pyo/sandbox";
+import { Sandbox, pyoSandboxTools } from "@pyodev/sandbox";
 
 const client = new Anthropic();
 

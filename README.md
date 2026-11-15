@@ -1,9 +1,9 @@
-# @pyo/sandbox
+# @pyodev/sandbox
 
 The TypeScript SDK for Pyo Sandbox. A sandbox is an isolated machine made on demand through an API, for AI agents, code interpreters, previews and CI jobs. Create one, run commands, read and write files, reach its ports and throw it away. Sandboxes run on your own sandbox servers, on Firecracker where the server has KVM and on gVisor elsewhere.
 
 ```ts
-import { Sandbox } from "@pyo/sandbox";
+import { Sandbox } from "@pyodev/sandbox";
 
 const sbx = await Sandbox.create({ template: "node-22", ttl: "1h" });
 const out = await sbx.exec("node -v");
@@ -15,7 +15,7 @@ await sbx.pause();
 ## Install
 
 ```sh
-npm install @pyo/sandbox
+npm install @pyodev/sandbox
 ```
 
 It has no runtime dependencies. It works in Node 20 and later and in Bun, with the global `fetch` and `WebSocket`.
@@ -210,7 +210,7 @@ Ready-made tools let a model use a sandbox: `exec`, `read_file`, `write_file`, `
 
 ```ts
 import Anthropic from "@anthropic-ai/sdk";
-import { Sandbox, pyoSandboxTools } from "@pyo/sandbox";
+import { Sandbox, pyoSandboxTools } from "@pyodev/sandbox";
 
 const client = new Anthropic();
 let sbx: Sandbox | undefined;
@@ -249,7 +249,7 @@ try {
 ```ts
 import { anthropic } from "@ai-sdk/anthropic";
 import { generateText, jsonSchema, stepCountIs } from "ai";
-import { Sandbox, pyoSandboxAiTools } from "@pyo/sandbox";
+import { Sandbox, pyoSandboxAiTools } from "@pyodev/sandbox";
 
 const sbx = await Sandbox.create({ template: "python-3.13" });
 const { text } = await generateText({

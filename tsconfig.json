@@ -14,7 +14,7 @@
     "declaration": true,
     "types": ["node"],
     "paths": {
-      "@pyo/sandbox": ["./src/index.ts"]
+      "@pyodev/sandbox": ["./src/index.ts"]
     }
   },
   "include": ["src", "test", "examples", "tsup.config.ts", "vitest.config.ts"]

@@ -1,7 +1,7 @@
 // The same tools with the Vercel AI SDK.
 // Needs ANTHROPIC_API_KEY, PYO_URL, PYO_API_KEY and PYO_TEAM.
 import { anthropic } from "@ai-sdk/anthropic";
-import { Sandbox, pyoSandboxAiTools } from "@pyo/sandbox";
+import { Sandbox, pyoSandboxAiTools } from "@pyodev/sandbox";
 import { generateText, jsonSchema, stepCountIs } from "ai";
 
 const sbx = await Sandbox.create({ template: "python-3.13", ttl: "15m" });

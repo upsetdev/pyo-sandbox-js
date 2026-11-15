@@ -1,5 +1,5 @@
 // The short example from the plan. Needs PYO_URL, PYO_API_KEY and PYO_TEAM.
-import { PyoSandboxError, Sandbox } from "@pyo/sandbox";
+import { PyoSandboxError, Sandbox } from "@pyodev/sandbox";
 
 const sbx = await Sandbox.create({ template: "node-22", ttl: "1h" });
 const out = await sbx.exec("node -v");

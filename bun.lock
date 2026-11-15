@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "@pyo/sandbox",
+      "name": "@pyodev/sandbox",
       "devDependencies": {
         "@ai-sdk/anthropic": "^4.0.105",
         "@anthropic-ai/sdk": "^1.8.0",

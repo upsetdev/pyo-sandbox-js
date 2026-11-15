@@ -1,8 +1,16 @@
 {
-  "name": "@pyo/sandbox",
+  "name": "@pyodev/sandbox",
   "version": "0.4.0",
   "description": "TypeScript SDK for Pyo Sandbox: isolated machines on your own servers, made on demand through an API.",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/upsetdev/pyo-sandbox-js.git"
+  },
+  "homepage": "https://pyo.dev/docs/sandboxes",
+  "bugs": {
+    "url": "https://github.com/upsetdev/pyo-sandbox-js/issues"
+  },
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -28,6 +36,9 @@
   "sideEffects": false,
   "engines": {
     "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "keywords": [
     "pyo",
