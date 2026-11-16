@@ -138,6 +138,17 @@ describe("create and connect", () => {
     expect((await b.exec("echo $GREETING", { transport: "websocket" })).stdout).toBe("hi\n");
   });
 
+  it("lists a team's servers with their runtime", async () => {
+    const servers = await Sandbox.servers({ ...base() });
+    expect(servers.map((s) => [s.name, s.runtime])).toEqual([
+      ["fc-1", "firecracker"],
+      ["gv-1", "gvisor"],
+    ]);
+    expect(servers[1]?.cloud).toMatchObject({ provider: "hetzner", serverType: "cx22" });
+    expect(servers[0]?.cloud).toBeNull();
+    expect("capability" in (servers[0] ?? {})).toBe(false);
+  });
+
   it("lists a team's sandboxes", async () => {
     const sbx = await create();
     const all = await Sandbox.list({ ...base() });

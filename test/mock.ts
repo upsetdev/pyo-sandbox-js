@@ -561,6 +561,25 @@ export class MockPyo {
         const all = [...this.daemon.sandboxes.values()].filter((s) => s.teamId === url.searchParams.get("team"));
         return json(res, 200, { sandboxes: all.map((s) => this.view(s)), limits: {}, inUse: {} });
       }
+      case "GET /sandbox-servers": {
+        const team = url.searchParams.get("team");
+        return json(res, 200, {
+          servers: [
+            {
+              id: "sbs_fc", teamId: team, name: "fc-1", address: "100.64.0.2", state: "ready", enabled: true,
+              runtime: "firecracker", capability: { runtime: "firecracker" }, summary: "Firecracker on KVM.",
+              sandboxes: this.daemon.sandboxes.size, cloud: null, error: null, createdAt: 1,
+            },
+            {
+              // An older Pyo: no top-level runtime.
+              id: "sbs_gv", teamId: null, name: "gv-1", address: "100.64.0.3", state: "ready", enabled: true,
+              capability: { runtime: "gvisor" }, summary: "gVisor, because this server has no usable KVM.",
+              sandboxes: 0, error: null, createdAt: 2,
+              cloud: { id: "cs_gv", provider: "hetzner", location: "fsn1", serverType: "cx22", monthly: 4.29, currency: "EUR", state: "ready", error: null },
+            },
+          ],
+        });
+      }
       case "GET /sandboxes/{id}": {
         const s = needSbx();
         if (!s) return;

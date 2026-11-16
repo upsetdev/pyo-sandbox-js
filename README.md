@@ -74,6 +74,9 @@ List a team's sandboxes:
 ```ts
 const live = await Sandbox.list();                 // not stopped or failed
 const all = await Sandbox.list({ state: "all" });  // the latest 500
+
+// The team's sandbox servers, each with its runtime: "firecracker" or "gvisor".
+const servers = await Sandbox.servers();
 ```
 
 Lifecycle calls go to Pyo:

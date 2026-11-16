@@ -1,5 +1,5 @@
 import { PyoSandboxError, clientError, codeForStatus } from "./errors.js";
-import type { ClientOptions, Connection, SandboxInfo, Ttl } from "./types.js";
+import type { ClientOptions, Connection, SandboxInfo, SandboxServerInfo, Ttl } from "./types.js";
 
 function env(name: string): string | undefined {
   // `process` is missing in browsers and some edge runtimes.
@@ -84,6 +84,22 @@ export class PyoApi {
     const q = new URLSearchParams({ team: teamId });
     if (state) q.set("state", state);
     return this.call("GET", `/sandboxes?${q}`);
+  }
+
+  async servers(teamId: string): Promise<SandboxServerInfo[]> {
+    const r = await this.call<{ servers: Array<SandboxServerInfo & { capability?: { runtime?: string } | null }> }>(
+      "GET",
+      `/sandbox-servers?${new URLSearchParams({ team: teamId })}`,
+    );
+    // An older Pyo has the runtime only in the capability report.
+    return r.servers.map(({ capability, ...s }) => {
+      const runtime = s.runtime ?? capability?.runtime ?? null;
+      return {
+        ...s,
+        runtime: runtime === "firecracker" || runtime === "gvisor" ? runtime : null,
+        cloud: s.cloud ?? null,
+      };
+    });
   }
 
   token(id: string): Promise<Connection> {

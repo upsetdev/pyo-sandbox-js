@@ -165,6 +165,45 @@ export interface ConnectOptions extends ClientOptions {
   env?: Record<string, string>;
 }
 
+/** A sandbox server your team's sandboxes can run on. */
+export interface SandboxServerInfo {
+  id: string;
+  /** Null for the installation's, which every team may use. */
+  teamId: string | null;
+  name: string;
+  /** Its tailnet address, once it joined. */
+  address: string | null;
+  state: "joining" | "ready" | "unreachable" | "refused";
+  enabled: boolean;
+  /** What runs its sandboxes: Firecracker where it has KVM, gVisor elsewhere. Null until it reports. */
+  runtime: Runtime | null;
+  /** One line about what it runs, like "gVisor, because this server has no usable KVM." */
+  summary: string | null;
+  /** How many sandboxes run on it. */
+  sandboxes: number;
+  /** The server Pyo made for it at a cloud provider, while it's there. */
+  cloud: SandboxServerCloud | null;
+  error: string | null;
+  createdAt: number;
+}
+
+export interface SandboxServerCloud {
+  id: string;
+  provider: "hetzner";
+  location: string;
+  serverType: string;
+  /** A month, before VAT. */
+  monthly: number;
+  currency: string;
+  state: "creating" | "booting" | "joining" | "ready" | "failed" | "removing";
+  error: string | null;
+}
+
+export interface ListServersOptions extends ClientOptions {
+  /** The team's id. Defaults to `PYO_TEAM`. */
+  teamId?: string;
+}
+
 export interface ListOptions extends ClientOptions {
   /** The team's id. Defaults to `PYO_TEAM`. */
   teamId?: string;

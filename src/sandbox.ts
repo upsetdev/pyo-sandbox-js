@@ -10,6 +10,8 @@ import type {
   ExecOptions,
   ExecResult,
   ListOptions,
+  ListServersOptions,
+  SandboxServerInfo,
   OpenPortOptions,
   PtyOptions,
   RemoveOptions,
@@ -131,6 +133,14 @@ export class Sandbox implements Access {
       pyo = undefined;
     }
     return new Sandbox(conn, pyo, opts);
+  }
+
+  /** The sandbox servers a team can use, with the runtime each runs its sandboxes on. */
+  static async servers(opts: ListServersOptions = {}): Promise<SandboxServerInfo[]> {
+    const pyo = new PyoApi(opts);
+    const teamId = opts.teamId ?? envTeam();
+    if (!teamId) throw clientError("Set PYO_TEAM or pass teamId.", "missingTeam");
+    return pyo.servers(teamId);
   }
 
   /** A team's sandboxes. */
