@@ -103,6 +103,13 @@ describe("create and connect", () => {
     }
   });
 
+  it("asks for the server it's given, and only then", async () => {
+    await Sandbox.create({ ...base(), server: "sandbox-1" });
+    expect(pyo.calls.at(-1)?.body).toMatchObject({ server: "sandbox-1" });
+    await Sandbox.create(base());
+    expect(pyo.calls.at(-1)?.body).not.toHaveProperty("server");
+  });
+
   it("leaves the template to Pyo when none is given", async () => {
     const sbx = await Sandbox.create(base());
     expect(pyo.calls.at(-1)?.body).not.toHaveProperty("template");

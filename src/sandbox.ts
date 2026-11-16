@@ -92,6 +92,7 @@ export class Sandbox implements Access {
     };
     // Pyo refuses unknown fields, so only send what was given.
     const fields = [
+      "server",
       "cpus",
       "memoryMib",
       "diskMib",

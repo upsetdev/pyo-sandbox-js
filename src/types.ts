@@ -113,9 +113,16 @@ export interface CreateOptions extends ClientOptions {
   teamId?: string;
   /**
    * A sandbox template's name or id, like `node-22`. `base` by default:
-   * Pyo's built-in Debian 13 with git, Python, uv, Node.js and pnpm.
+   * Pyo's built-in Debian 13 with git, Python, uv, Node.js and pnpm. A
+   * server makes `base` the first time it's used there, so that first
+   * create takes longer.
    */
   template?: string;
+  /**
+   * A sandbox server's name or id to run it on: the team's own or the
+   * installation's. Pyo picks one by default.
+   */
+  server?: string;
   /** 1 by default. */
   cpus?: number;
   /** 512 by default. */

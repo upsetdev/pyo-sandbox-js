@@ -529,7 +529,7 @@ export class MockPyo {
     };
     switch (key) {
       case "POST /sandboxes": {
-        const allowed = new Set(["teamId", "template", "cpus", "memoryMib", "diskMib", "ttl", "pauseWhenIdleSecs", "env", "network", "isolation", "labels", "projectId"]);
+        const allowed = new Set(["teamId", "template", "server", "cpus", "memoryMib", "diskMib", "ttl", "pauseWhenIdleSecs", "env", "network", "isolation", "labels", "projectId"]);
         const unknown = Object.keys(body ?? {}).find((k) => !allowed.has(k));
         if (unknown) return json(res, 422, { error: `unknown field \`${unknown}\`` });
         // Like Pyo: the key's only team when teamId is left out.
