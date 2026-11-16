@@ -12,7 +12,7 @@ const url = await sbx.ports.open(3000);
 await sbx.pause();
 ```
 
-Without a template, a sandbox starts from `base`, Pyo's built-in template: Debian 13 with git, Python 3 with pip and uv, Node.js LTS with npm and pnpm, and build tools. A sandbox server makes `base` the first time it's used there, so the first `Sandbox.create()` on a server takes longer. Later ones start at once.
+Without a template, a sandbox starts from `base`, Pyo's built-in template: Ubuntu 24.04 with git, Python 3 with pip and uv, Node.js LTS with npm and pnpm, Bun, Deno, build tools, the GitHub and Docker CLIs, Claude Code, Codex and opencode. A sandbox server makes `base` the first time it's used there, so the first `Sandbox.create()` on a server takes longer. Later ones start at once.
 
 ## Install
 
