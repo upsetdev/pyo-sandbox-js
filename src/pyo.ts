@@ -102,6 +102,10 @@ export class PyoApi {
     return this.call("POST", `/sandboxes/${encodeURIComponent(id)}/extend`, { ttl });
   }
 
+  rename(id: string, name: string): Promise<SandboxInfo> {
+    return this.call("PATCH", `/sandboxes/${encodeURIComponent(id)}`, { name });
+  }
+
   delete(id: string): Promise<SandboxInfo> {
     return this.call("DELETE", `/sandboxes/${encodeURIComponent(id)}`);
   }

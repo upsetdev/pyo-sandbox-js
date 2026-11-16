@@ -45,6 +45,7 @@ Pyo is the control plane only. It creates sandboxes, signs tokens and handles pa
 
 ```ts
 const sbx = await Sandbox.create({
+  name: "checkout tests",  // for people. Not unique. Made up by default, like "quiet-river".
   template: "node-22",     // a sandbox template's name or id. "base" by default.
   server: "sandbox-1",     // a sandbox server's name or id. Pyo picks one by default.
   cpus: 2,                 // 1 by default
@@ -78,6 +79,7 @@ const all = await Sandbox.list({ state: "all" });  // the latest 500
 Lifecycle calls go to Pyo:
 
 ```ts
+await sbx.rename("nightly build");  // the id stays the same
 await sbx.extend("2h");  // it now ends two hours from now
 await sbx.pause();       // keeps memory and files, drops connections
 await sbx.resume();
@@ -267,7 +269,7 @@ Pass the AI SDK's own `jsonSchema` helper, since this package doesn't import `ai
 
 ## How it talks
 
-- **Pyo** (`/api/v1/sandboxes…`, `Authorization: Bearer pyo_…`): create, connect, list, pause, resume, extend, delete, tokens and ports.
+- **Pyo** (`/api/v1/sandboxes…`, `Authorization: Bearer pyo_…`): create, connect, list, rename, pause, resume, extend, delete, tokens and ports.
 - **The sandbox server** (`connection.url`, `Authorization: Bearer <sandbox token>`): plain `exec` and files over HTTP under `/v1/sandboxes/{id}`.
 - **The sandbox's WebSocket** (`/v1/sandboxes/{id}/connect`): streaming commands, `spawn`, terminals and port connections. The token goes as the subprotocol `pyo.token.<token>`, next to `pyo`, so it stays out of URLs. A refused connection closes with code 4000 plus the HTTP status (4401, 4403…) and the reason. A terminal keeps working after its token runs out. It speaks envd's frame format, one frame per binary message: `[len u32 BE][kind u8][stream u32 BE][payload]`. envd sends `Hello` on stream 0 first, and the SDK picks the newest protocol version both sides speak. Each command gets its own WebSocket, closed when it ends. The codec is exported as `wire` for other tools.
 

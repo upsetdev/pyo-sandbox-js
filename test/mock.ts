@@ -35,6 +35,7 @@ interface TokenInfo {
 
 interface MockSandbox {
   id: string;
+  name: string;
   teamId: string;
   template: string;
   env: Record<string, string>;
@@ -481,6 +482,7 @@ export class MockPyo {
   view(s: MockSandbox) {
     return {
       id: s.id,
+      name: s.name,
       teamId: s.teamId,
       projectId: (s.spec.projectId as string) ?? null,
       serverId: "sbs_mock",
@@ -529,7 +531,7 @@ export class MockPyo {
     };
     switch (key) {
       case "POST /sandboxes": {
-        const allowed = new Set(["teamId", "template", "server", "cpus", "memoryMib", "diskMib", "ttl", "pauseWhenIdleSecs", "env", "network", "isolation", "labels", "projectId"]);
+        const allowed = new Set(["teamId", "name", "template", "server", "cpus", "memoryMib", "diskMib", "ttl", "pauseWhenIdleSecs", "env", "network", "isolation", "labels", "projectId"]);
         const unknown = Object.keys(body ?? {}).find((k) => !allowed.has(k));
         if (unknown) return json(res, 422, { error: `unknown field \`${unknown}\`` });
         // Like Pyo: the key's only team when teamId is left out.
@@ -543,6 +545,7 @@ export class MockPyo {
         const id = `sbx_mock${String(++this.n).padStart(12, "0")}`;
         const s: MockSandbox = {
           id,
+          name: (body?.name as string | undefined) ?? "quiet-river",
           teamId: TEAM,
           template,
           env: (body?.env as Record<string, string>) ?? {},
@@ -582,6 +585,14 @@ export class MockPyo {
         const pausing = key.endsWith("pause");
         if (pausing !== (s.state === "running")) return json(res, 409, { error: pausing ? "It isn't running." : "It isn't paused." });
         s.state = pausing ? "paused" : "running";
+        return json(res, 200, this.view(s));
+      }
+      case "PATCH /sandboxes/{id}": {
+        const s = needSbx();
+        if (!s) return;
+        const name = typeof body?.name === "string" ? body.name.trim() : "";
+        if (!name) return json(res, 400, { error: "Give the sandbox a name." });
+        s.name = name;
         return json(res, 200, this.view(s));
       }
       case "POST /sandboxes/{id}/extend": {

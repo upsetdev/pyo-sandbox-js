@@ -38,6 +38,8 @@ export interface Connection {
 /** A sandbox as Pyo shows it. */
 export interface SandboxInfo {
   id: string;
+  /** For people to tell it apart. Not unique: the id addresses it. */
+  name: string;
   teamId: string;
   projectId: string | null;
   serverId: string | null;
@@ -116,6 +118,12 @@ export interface CreateOptions extends ClientOptions {
    * only team.
    */
   teamId?: string;
+  /**
+   * A name to tell it apart, like `"checkout tests"`: up to 63 letters,
+   * digits, spaces, dashes, underscores and dots. It needn't be unique. Pyo
+   * makes up a short one like `quiet-river` by default.
+   */
+  name?: string;
   /**
    * A sandbox template's name or id, like `node-22`. `base` by default:
    * Pyo's built-in Debian 13 with git, Python, uv, Node.js and pnpm. A

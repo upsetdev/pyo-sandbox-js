@@ -333,6 +333,21 @@ describe("ports", () => {
   });
 });
 
+describe("names", () => {
+  it("are sent on create and renamed through Pyo, keeping the id", async () => {
+    const named = await create({ name: "checkout tests" });
+    expect(named.info?.name).toBe("checkout tests");
+    expect(pyo.calls.some((c) => c.path === "/sandboxes" && (c.body as { name?: string })?.name === "checkout tests")).toBe(true);
+    const plain = await create();
+    expect(plain.info?.name).toBe("quiet-river");
+    const info = await plain.rename("nightly build");
+    expect(info).toMatchObject({ id: plain.id, name: "nightly build" });
+    expect(plain.info?.name).toBe("nightly build");
+    expect(pyo.calls.some((c) => c.method === "PATCH" && c.path === `/sandboxes/${plain.id}`)).toBe(true);
+    expect((await rejection(plain.rename(" "))).status).toBe(400);
+  });
+});
+
 describe("lifecycle", () => {
   it("pause, resume, extend and delete go to Pyo", async () => {
     const sbx = await create();
