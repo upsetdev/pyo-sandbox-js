@@ -340,9 +340,12 @@ describe("lifecycle", () => {
     const e = await rejection(sbx.pause());
     expect(e).toMatchObject({ status: 409, code: "conflict", message: "It isn't running." });
     expect((await sbx.resume()).state).toBe("running");
-    const before = sbx.info!.expiresAt;
+    const before = sbx.info!.expiresAt!;
     const after = await sbx.extend("1h");
     expect(after.expiresAt).toBeGreaterThan(before);
+    expect((await sbx.extend("7d")).expiresAt).toBeGreaterThan(Date.now() + 6 * 86_400_000);
+    expect((await sbx.extend("none")).expiresAt).toBeNull();
+    expect(sbx.info!.expiresAt).toBeNull();
     expect((await rejection(sbx.extend("soon"))).status).toBe(400);
     expect((await sbx.delete()).state).toBe("stopped");
     expect(pyo.calls.some((c) => c.path === `/sandboxes/${sbx.id}/extend` && JSON.stringify(c.body) === '{"ttl":"1h"}')).toBe(true);

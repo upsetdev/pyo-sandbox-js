@@ -17,8 +17,12 @@ export type NetworkMode = "internet" | "none";
 /** `auto` runs on Firecracker where it can and on gVisor elsewhere. `vm` needs Firecracker. */
 export type Isolation = "auto" | "vm";
 
-/** A lifetime like `"30m"`, `"1h"` or `"1h30m"`, or a number of seconds. */
-export type Ttl = string | number;
+/**
+ * A lifetime like `"30m"`, `"1h"`, `"7d"` or `"1h30m"`, or a number of
+ * seconds, up to 365 days and the team's longest. `"none"`: the sandbox runs
+ * until it's deleted, when the team has no limit.
+ */
+export type Ttl = "none" | (string & {}) | number;
 
 /** Where a client reaches its sandbox, and with what. Pyo signs a new one on request. */
 export interface Connection {
@@ -67,7 +71,8 @@ export interface SandboxInfo {
   createdBy: string | null;
   createdAt: number;
   startedAt: number | null;
-  expiresAt: number;
+  /** When its lifetime ends. Null: it runs until it's deleted. */
+  expiresAt: number | null;
   pausedAt: number | null;
   endedAt: number | null;
 }
@@ -129,7 +134,7 @@ export interface CreateOptions extends ClientOptions {
   memoryMib?: number;
   /** The writable disk. It is sparse. 2048 by default. */
   diskMib?: number;
-  /** How long it lives, like `"30m"` or `"1h"`. 5 minutes by default. */
+  /** How long it lives, like `"30m"`, `"1h"` or `"7d"`, or `"none"` to run until it's deleted. 5 minutes by default. */
   ttl?: Ttl;
   /** Pause after this many seconds without use. Pyo keeps it, and acts on it in a later release. */
   pauseWhenIdleSecs?: number;

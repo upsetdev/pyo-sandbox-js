@@ -309,7 +309,7 @@ export class Sandbox implements Access {
     return this.info;
   }
 
-  /** The sandbox now ends `ttl` from now, like `"30m"` or `"1h"`. */
+  /** The sandbox now ends `ttl` from now, like `"30m"`, `"1h"` or `"7d"`. `"none"`: it runs until it's deleted. */
   async extend(ttl: Ttl): Promise<SandboxInfo> {
     this.info = await this.needPyo("Extending").extend(this.id, ttl);
     return this.info;

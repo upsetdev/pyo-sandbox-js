@@ -39,7 +39,7 @@ interface MockSandbox {
   template: string;
   env: Record<string, string>;
   state: string;
-  expiresAt: number;
+  expiresAt: number | null;
   spec: Record<string, unknown>;
   ports: Array<{ port: number; public: boolean }>;
 }
@@ -588,8 +588,13 @@ export class MockPyo {
         const s = needSbx();
         if (!s) return;
         const ttl = body?.ttl;
-        const secs = typeof ttl === "number" ? ttl : ttl === "1h" ? 3600 : ttl === "30m" ? 1800 : NaN;
-        if (!Number.isFinite(secs)) return json(res, 400, { error: 'The lifetime is like "30m", "1h" or a number of seconds.' });
+        if (ttl === "none") {
+          s.expiresAt = null;
+          return json(res, 200, this.view(s));
+        }
+        const secs =
+          typeof ttl === "number" ? ttl : ttl === "1h" ? 3600 : ttl === "30m" ? 1800 : ttl === "7d" ? 7 * 86_400 : NaN;
+        if (!Number.isFinite(secs)) return json(res, 400, { error: 'The lifetime is like "30m", "1h", "7d", a number of seconds or "none".' });
         s.expiresAt = Date.now() + secs * 1000;
         return json(res, 200, this.view(s));
       }

@@ -50,7 +50,7 @@ const sbx = await Sandbox.create({
   cpus: 2,                 // 1 by default
   memoryMib: 1024,         // 512 by default
   diskMib: 4096,           // 2048 by default, sparse
-  ttl: "1h",               // "90s", "30m", "1h30m" or seconds. 5 minutes by default.
+  ttl: "1h",               // "30m", "1h", "7d" or seconds, up to 365 days. "none" runs it until you delete it. 5 minutes by default.
   env: { API_URL: "https://example.com" },
   network: "none",         // "internet" by default
   isolation: "vm",         // "auto" by default. "vm" needs Firecracker.

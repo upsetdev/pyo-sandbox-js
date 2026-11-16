@@ -1,5 +1,5 @@
 import { PyoSandboxError, clientError, codeForStatus } from "./errors.js";
-import type { ClientOptions, Connection, SandboxInfo } from "./types.js";
+import type { ClientOptions, Connection, SandboxInfo, Ttl } from "./types.js";
 
 function env(name: string): string | undefined {
   // `process` is missing in browsers and some edge runtimes.
@@ -98,7 +98,7 @@ export class PyoApi {
     return this.call("POST", `/sandboxes/${encodeURIComponent(id)}/resume`);
   }
 
-  extend(id: string, ttl: string | number): Promise<SandboxInfo> {
+  extend(id: string, ttl: Ttl): Promise<SandboxInfo> {
     return this.call("POST", `/sandboxes/${encodeURIComponent(id)}/extend`, { ttl });
   }
 
