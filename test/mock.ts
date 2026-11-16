@@ -537,14 +537,15 @@ export class MockPyo {
           return json(res, 400, { error: `Pass teamId: the team the sandbox belongs to. You can use ${this.teams} teams.` });
         }
         if (body?.teamId !== undefined && body.teamId !== TEAM) return json(res, 404, { error: "Team not found." });
-        if (!body?.template) return json(res, 422, { error: "missing field `template`" });
-        if (body.template === "missing") return json(res, 404, { error: "Sandbox template not found." });
+        // Like Pyo: base when no template is given.
+        const template = (body?.template as string | undefined) ?? "base";
+        if (template === "missing") return json(res, 404, { error: "Sandbox template not found." });
         const id = `sbx_mock${String(++this.n).padStart(12, "0")}`;
         const s: MockSandbox = {
           id,
           teamId: TEAM,
-          template: body.template as string,
-          env: (body.env as Record<string, string>) ?? {},
+          template,
+          env: (body?.env as Record<string, string>) ?? {},
           state: "running",
           expiresAt: Date.now() + 300_000,
           spec: body ?? {},

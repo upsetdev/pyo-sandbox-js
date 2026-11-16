@@ -81,12 +81,15 @@ export class Sandbox implements Access {
   }
 
   /** Creates a sandbox and returns it once Pyo has started it. */
-  static async create(opts: CreateOptions): Promise<Sandbox> {
+  static async create(opts: CreateOptions = {}): Promise<Sandbox> {
     const pyo = new PyoApi(opts);
     // Without one, Pyo takes the API key's only team, or says to pass one.
     const teamId = opts.teamId ?? envTeam();
-    if (!opts.template) throw clientError("Pass a template, like \"node-22\".", "missingTemplate");
-    const body: Record<string, unknown> = { ...(teamId ? { teamId } : {}), template: opts.template };
+    // Without one, Pyo starts it from its built-in template, base.
+    const body: Record<string, unknown> = {
+      ...(teamId ? { teamId } : {}),
+      ...(opts.template ? { template: opts.template } : {}),
+    };
     // Pyo refuses unknown fields, so only send what was given.
     const fields = [
       "cpus",

@@ -5,12 +5,14 @@ The TypeScript SDK for Pyo Sandbox. A sandbox is an isolated machine made on dem
 ```ts
 import { Sandbox } from "@pyodev/sandbox";
 
-const sbx = await Sandbox.create({ template: "node-22", ttl: "1h" });
+const sbx = await Sandbox.create({ ttl: "1h" });
 const out = await sbx.exec("node -v");
 await sbx.files.write("/app/index.js", "console.log('hi')");
 const url = await sbx.ports.open(3000);
 await sbx.pause();
 ```
+
+Without a template, a sandbox starts from `base`, Pyo's built-in template: Debian 13 with git, Python 3 with pip and uv, Node.js LTS with npm and pnpm, and build tools.
 
 ## Install
 
@@ -24,7 +26,7 @@ Node 20 has no global `WebSocket`. Plain `exec` and files work without one. For 
 
 ```ts
 import WebSocket from "ws";
-const sbx = await Sandbox.create({ template: "node-22", WebSocket });
+const sbx = await Sandbox.create({ WebSocket });
 ```
 
 ## Setup
@@ -43,7 +45,7 @@ Pyo is the control plane only. It creates sandboxes, signs tokens and handles pa
 
 ```ts
 const sbx = await Sandbox.create({
-  template: "node-22",     // a sandbox template's name or id
+  template: "node-22",     // a sandbox template's name or id. "base" by default.
   cpus: 2,                 // 1 by default
   memoryMib: 1024,         // 512 by default
   diskMib: 4096,           // 2048 by default, sparse

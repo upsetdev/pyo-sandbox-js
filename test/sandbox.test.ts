@@ -103,6 +103,12 @@ describe("create and connect", () => {
     }
   });
 
+  it("leaves the template to Pyo when none is given", async () => {
+    const sbx = await Sandbox.create(base());
+    expect(pyo.calls.at(-1)?.body).not.toHaveProperty("template");
+    expect(sbx.info?.template).toBe("base");
+  });
+
   it("surfaces Pyo's errors", async () => {
     const e = await rejection(create({ template: "missing" }));
     expect(e.source).toBe("pyo");
