@@ -1,6 +1,6 @@
 {
   "name": "@pyodev/sandbox",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "TypeScript SDK for Pyo Sandbox: isolated machines on your own servers, made on demand through an API.",
   "license": "Apache-2.0",
   "repository": {
@@ -31,6 +31,7 @@
   "files": [
     "dist",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "sideEffects": false,
