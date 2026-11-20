@@ -566,7 +566,10 @@ export class MockPyo {
         return json(res, 201, { sandbox: this.view(s), connection: this.connection(id) });
       }
       case "GET /sandboxes": {
-        const all = [...this.daemon.sandboxes.values()].filter((s) => s.teamId === url.searchParams.get("team"));
+        const q = url.searchParams.get("q")?.toLowerCase();
+        const all = [...this.daemon.sandboxes.values()].filter(
+          (s) => s.teamId === url.searchParams.get("team") && (!q || s.name.toLowerCase().includes(q) || s.id.includes(q)),
+        );
         return json(res, 200, { sandboxes: all.map((s) => this.view(s)), limits: {}, inUse: {} });
       }
       case "GET /sandbox-servers": {

@@ -154,6 +154,13 @@ describe("create and connect", () => {
     const all = await Sandbox.list({ ...base() });
     expect(all.map((s) => s.id)).toContain(sbx.id);
   });
+
+  it("searches a team's sandboxes by name or id", async () => {
+    const sbx = await create({ name: "Search Me 7" });
+    const found = await Sandbox.list({ ...base(), search: "search me" });
+    expect(found.map((s) => s.id)).toEqual([sbx.id]);
+    expect(pyo.calls.at(-1)?.path).toBe(`/sandboxes?team=${TEAM}&q=search+me`);
+  });
 });
 
 describe("exec", () => {

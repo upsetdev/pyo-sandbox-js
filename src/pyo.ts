@@ -80,9 +80,10 @@ export class PyoApi {
     return this.call("GET", `/sandboxes/${encodeURIComponent(id)}`);
   }
 
-  list(teamId: string, state?: "live" | "all"): Promise<{ sandboxes: SandboxInfo[] }> {
+  list(teamId: string, state?: "live" | "all", search?: string): Promise<{ sandboxes: SandboxInfo[] }> {
     const q = new URLSearchParams({ team: teamId });
     if (state) q.set("state", state);
+    if (search) q.set("q", search);
     return this.call("GET", `/sandboxes?${q}`);
   }
 

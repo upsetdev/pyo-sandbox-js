@@ -209,6 +209,8 @@ export interface ListOptions extends ClientOptions {
   teamId?: string;
   /** `live` (the default: not stopped or failed) or `all` (the latest 500). */
   state?: "live" | "all";
+  /** Only sandboxes whose name or id has this text, ignoring case. */
+  search?: string;
 }
 
 export interface ExecOptions {

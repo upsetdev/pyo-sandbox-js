@@ -148,7 +148,7 @@ export class Sandbox implements Access {
     const pyo = new PyoApi(opts);
     const teamId = opts.teamId ?? envTeam();
     if (!teamId) throw clientError("Set PYO_TEAM or pass teamId.", "missingTeam");
-    return (await pyo.list(teamId, opts.state)).sandboxes;
+    return (await pyo.list(teamId, opts.state, opts.search?.trim() || undefined)).sandboxes;
   }
 
   // ── Tokens ───────────────────────────────────────────────────────────────
