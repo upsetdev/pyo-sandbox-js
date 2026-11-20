@@ -48,8 +48,8 @@ const sbx = await Sandbox.create({
   name: "checkout tests",  // for people. Not unique. Made up by default, like "quiet-river".
   template: "node-22",     // a sandbox template's name or id. "base" by default.
   server: "sandbox-1",     // a sandbox server's name or id. Pyo picks one by default.
-  cpus: 2,                 // 1 by default
-  memoryMib: 1024,         // 512 by default
+  cpus: 2,                 // 1 by default, 2 for "desktop"
+  memoryMib: 1024,         // 512 by default, 2048 for "desktop"
   diskMib: 4096,           // 2048 by default, sparse
   ttl: "1h",               // "30m", "1h", "7d" or seconds, up to 365 days. "none" runs it until you delete it. 5 minutes by default.
   env: { API_URL: "https://example.com" },
@@ -175,6 +175,24 @@ conn.end();
 await conn.closed;
 ```
 
+`ports.webUrl` gives a port's web page over HTTPS on your tailnet, at the address Pyo gives, like `https://sandboxes.tail1234.ts.net/v1/sandboxes/sbx_abc/web/3000/`. It needs Tailscale set up in Pyo, not an edge domain, and opens only for people on your tailnet. The URL carries the sandbox token, so give it only to someone who may use the sandbox:
+
+```ts
+const page = await sbx.ports.webUrl(3000);
+```
+
+## Desktop
+
+The `desktop` template is `base` with a desktop and a browser. Its sandboxes get 2 CPUs and 2 GiB of memory unless you ask for more. `desktopUrl` gives its screen to open in a browser, over HTTPS on your tailnet:
+
+```ts
+const desk = await Sandbox.create({ template: "desktop", ttl: "1h" });
+const screen = await desk.desktopUrl();                     // the desktop
+const browser = await desk.desktopUrl({ app: "chromium" }); // with the browser in front
+```
+
+Programs in the sandbox drive the browser over the Chrome DevTools Protocol at `127.0.0.1:9222`, with Playwright or Puppeteer.
+
 ## Tokens
 
 The token for the sandbox server lasts an hour. The SDK asks Pyo for a new one (`POST /sandboxes/{id}/token`) five minutes before it runs out, and once more if the server refuses one. Set `tokenRefreshMarginMs` to change the margin, or call `sbx.refresh()` yourself.
@@ -184,7 +202,7 @@ A client without an API key, like a browser, can use a connection your backend m
 ```ts
 // On your backend
 const sbx = await Sandbox.create({ template: "node-22" });
-const conn = await sbx.connection(); // { url, sandboxId, token, expiresAt }
+const conn = await sbx.connection(); // { url, sandboxId, token, expiresAt, webUrl }
 
 // In the client
 const sbx = Sandbox.fromConnection(conn, {

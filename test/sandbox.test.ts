@@ -16,6 +16,7 @@ afterAll(() => stop());
 afterEach(() => {
   pyo.tokenTtlMs = 3_600_000;
   pyo.portsRoute = false;
+  pyo.webUrl = undefined;
   pyo.teams = 1;
   daemon.outputCap = 8 << 20;
   daemon.hello = { protocol: 1, minProtocol: 1, envdVersion: "mock-0.0.0" };
@@ -335,6 +336,33 @@ describe("ports", () => {
     // Closing it again is fine.
     await sbx.ports.close(3000);
     expect((await rejection(sbx.ports.close(0))).code).toBe("invalidOptions");
+  });
+
+  it("opens a port's web page at the tailnet address Pyo gives", async () => {
+    const sbx = await create();
+    const e = await rejection(sbx.ports.webUrl(3000));
+    expect(e).toMatchObject({ source: "pyo", code: "unsupported" });
+    // Without an address it asked for a new token, in case Pyo has one now.
+    pyo.webUrl = "https://sandboxes.tail1234.ts.net/";
+    const before = pyo.count("POST", /\/token$/);
+    const url = new URL(await sbx.ports.webUrl(3000));
+    expect(pyo.count("POST", /\/token$/)).toBe(before + 1);
+    expect(url.origin).toBe("https://sandboxes.tail1234.ts.net");
+    expect(url.pathname).toBe(`/v1/sandboxes/${sbx.id}/web/3000/`);
+    expect(url.searchParams.get("pyo_token")).toBe((await sbx.connection()).token);
+    // The connection has it now, so no more token calls.
+    await sbx.ports.webUrl(3001);
+    expect(pyo.count("POST", /\/token$/)).toBe(before + 1);
+  });
+
+  it("opens the desktop's screen with the browser in front", async () => {
+    pyo.webUrl = "https://sandboxes.tail1234.ts.net";
+    const sbx = await create({ template: "desktop", name: "agent desk" });
+    const url = new URL(await sbx.desktopUrl({ app: "chromium" }));
+    expect(url.pathname).toBe(`/v1/sandboxes/${sbx.id}/web/6080/`);
+    expect([...url.searchParams.keys()]).toEqual(["app", "name", "pyo_token"]);
+    expect(url.searchParams.get("app")).toBe("chromium");
+    expect(url.searchParams.get("name")).toBe("agent desk");
   });
 
   it("connects to a port through the server", async () => {

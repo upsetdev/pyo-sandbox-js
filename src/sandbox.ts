@@ -7,6 +7,7 @@ import type {
   ConnectOptions,
   Connection,
   CreateOptions,
+  DesktopUrlOptions,
   ExecOptions,
   ExecResult,
   ListOptions,
@@ -23,6 +24,8 @@ import type {
 import type { Cmd, FileEntry, Response } from "./wire.js";
 
 const DEFAULT_REFRESH_MARGIN_MS = 5 * 60_000;
+/** Where the `desktop` template serves its screen inside the sandbox. */
+const DESKTOP_PORT = 6080;
 
 export interface FromConnectionOptions extends ClientOptions {
   /**
@@ -179,6 +182,27 @@ export class Sandbox implements Access {
     }
     this.conn = next;
     return next;
+  }
+
+  /** @internal The connection with its `webUrl`, asked anew when the one held has none. */
+  async webConnection(): Promise<Connection> {
+    const c = await this.connection();
+    // A token from before Pyo's tailnet address was ready: a new one has it.
+    if (c.webUrl || (!this.pyo && !this.opts.refreshToken)) return c;
+    return this.refresh();
+  }
+
+  /**
+   * The `desktop` template's screen, to open in a browser over HTTPS on
+   * your tailnet. Pass `app: "chromium"` to open it with the browser in
+   * front. The URL carries the sandbox token, so give it only to someone
+   * who may use the sandbox.
+   */
+  async desktopUrl(opts: DesktopUrlOptions = {}): Promise<string> {
+    const query: Record<string, string> = {};
+    if (opts.app) query.app = opts.app;
+    if (this.info?.name) query.name = this.info.name;
+    return this.ports.webUrl(DESKTOP_PORT, query);
   }
 
   /** Where the sandbox's server is, and the current token. */
@@ -446,6 +470,29 @@ export class Ports {
       }
       throw e;
     }
+  }
+
+  /**
+   * The web page a port serves, over HTTPS on your tailnet, like
+   * `https://sandboxes.tail1234.ts.net/v1/sandboxes/sbx_abc/web/3000/`.
+   * Pyo gives the address. It needs Tailscale set up in Pyo, not an edge
+   * domain, and opens only for people on your tailnet. `query` goes on
+   * the URL for the page. The URL carries the sandbox token once, which
+   * the page keeps in a cookie, so give it only to someone who may use
+   * the sandbox. Throws a `PyoSandboxError` with code `unsupported` while
+   * Pyo has no tailnet address for sandboxes.
+   */
+  async webUrl(port: number, query: Record<string, string> = {}): Promise<string> {
+    checkPort(port);
+    const c = await this.sbx.webConnection();
+    if (!c.webUrl) {
+      throw new PyoSandboxError(
+        "Pyo has no tailnet address for sandbox web pages yet. Set up Tailscale in Pyo, then try again.",
+        { source: "pyo", code: "unsupported" },
+      );
+    }
+    const q = new URLSearchParams({ ...query, pyo_token: c.token });
+    return `${c.webUrl.replace(/\/+$/, "")}/v1/sandboxes/${encodeURIComponent(this.sbx.id)}/web/${port}/?${q}`;
   }
 
   /**

@@ -33,6 +33,12 @@ export interface Connection {
   token: string;
   /** When the token runs out, in epoch milliseconds. */
   expiresAt: number;
+  /**
+   * Where the sandbox's web pages open over HTTPS on your tailnet, like the
+   * desktop's screen. Pyo gives it once Tailscale is set up there and its
+   * address for sandboxes is ready. Use `sbx.ports.webUrl(port)` to open one.
+   */
+  webUrl?: string;
 }
 
 /** A sandbox as Pyo shows it. */
@@ -47,6 +53,8 @@ export interface SandboxInfo {
   template: string;
   templateId: string | null;
   state: SandboxState;
+  /** True while it waits for its server to make its template, like `base` the first time. */
+  preparing?: boolean;
   runtime: Runtime | null;
   cpus: number;
   memoryMib: number;
@@ -85,6 +93,14 @@ export interface OpenPort {
   /** A public port answers anyone. A private one needs a sandbox token. */
   public: boolean;
   url: string | null;
+}
+
+/** An app the desktop brings to the front when its screen opens. */
+export type DesktopApp = "chromium";
+
+export interface DesktopUrlOptions {
+  /** Open the screen with this app in front, started if it isn't running. */
+  app?: DesktopApp;
 }
 
 export interface OpenPortOptions {
@@ -136,9 +152,9 @@ export interface CreateOptions extends ClientOptions {
    * installation's. Pyo picks one by default.
    */
   server?: string;
-  /** 1 by default. */
+  /** 1 by default, 2 for `desktop`. */
   cpus?: number;
-  /** 512 by default. */
+  /** 512 by default, 2048 for `desktop`. */
   memoryMib?: number;
   /** The writable disk. It is sparse. 2048 by default. */
   diskMib?: number;

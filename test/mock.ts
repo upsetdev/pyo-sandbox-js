@@ -450,6 +450,8 @@ export class MockPyo {
   tokenTtlMs = 3_600_000;
   /** Whether Pyo has the ports route yet. */
   portsRoute = false;
+  /** Pyo's tailnet address for sandbox web pages, once Tailscale is set up. */
+  webUrl: string | undefined = undefined;
   /** How many teams the API key can use. */
   teams = 1;
   readonly calls: Array<{ method: string; path: string; body: unknown }> = [];
@@ -476,7 +478,7 @@ export class MockPyo {
     const token = `pyosbx1.mock${++this.n}.sig`;
     const expiresAt = Date.now() + this.tokenTtlMs;
     this.daemon.tokens.set(token, { sandboxId: id, exp: expiresAt, scopes: ["exec", "pty", "files", "ports"] });
-    return { url: this.daemon.url, sandboxId: id, token, expiresAt };
+    return { url: this.daemon.url, sandboxId: id, token, expiresAt, ...(this.webUrl ? { webUrl: this.webUrl } : {}) };
   }
 
   view(s: MockSandbox) {
@@ -490,6 +492,7 @@ export class MockPyo {
       template: s.template,
       templateId: "stp_mock",
       state: s.state,
+      preparing: false,
       runtime: "firecracker",
       cpus: (s.spec.cpus as number) ?? 1,
       memoryMib: (s.spec.memoryMib as number) ?? 512,
