@@ -109,9 +109,12 @@ export interface OpenPortOptions {
 }
 
 export interface ClientOptions {
-  /** A Pyo API key with sandboxes (or full) access. Defaults to `PYO_API_KEY`, then `PYO_TOKEN`. */
+  /** A Pyo API key with sandboxes (or full) access. Defaults to `PYO_API_KEY`. */
   apiKey?: string;
-  /** Your Pyo, like `https://pyo.example.com`. Defaults to `PYO_URL`. */
+  /**
+   * Your Pyo, like `https://pyo.example.com`, or `https://cloud.pyo.dev` on
+   * Pyo Cloud. `/api/v1` is added when it's missing. Defaults to `PYO_URL`.
+   */
   baseUrl?: string;
   /** A fetch to use instead of the global one. */
   fetch?: typeof fetch;

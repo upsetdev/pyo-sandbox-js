@@ -35,9 +35,11 @@ The SDK reads these when you don't pass them:
 
 | Variable | Option | What it is |
 |---|---|---|
-| `PYO_URL` | `baseUrl` | Your Pyo, like `https://pyo.example.com` |
-| `PYO_API_KEY` | `apiKey` | A Pyo API key with sandbox access. `PYO_TOKEN` works too. |
+| `PYO_URL` | `baseUrl` | Your Pyo, like `https://pyo.example.com`, or `https://cloud.pyo.dev` on Pyo Cloud |
+| `PYO_API_KEY` | `apiKey` | A Pyo API key with sandbox access |
 | `PYO_TEAM` | `teamId` | The team the sandboxes belong to. `create` may leave it out when the API key has one team. |
+
+The same code works on Pyo Cloud and on a Pyo you run yourself. Only `PYO_URL` and the key change.
 
 Pyo is the control plane only. It creates sandboxes, signs tokens and handles pause, resume, lifetime and delete. Commands, terminals and files go straight from your code to the sandbox server with a short-lived token, so Pyo is never in the hot path. The sandbox server answers on your tailnet, so the code that uses a sandbox runs on a machine in your tailnet.
 

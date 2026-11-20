@@ -3,6 +3,7 @@ import { readFileSync, statSync } from "node:fs";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { WebSocket as WsWebSocket } from "ws";
 import { PyoSandboxError, Sandbox, type CreateOptions, type WebSocketLike } from "../src/index.js";
+import { apiBase } from "../src/pyo.js";
 import { API_KEY, TEAM, startMocks, type MockDaemon, type MockPyo } from "./mock.js";
 
 let pyo: MockPyo;
@@ -71,6 +72,29 @@ describe("create and connect", () => {
     } finally {
       process.env = saved;
     }
+  });
+
+  it("takes PYO_API_KEY first and PYO_TOKEN only without it", async () => {
+    const saved = { ...process.env };
+    process.env.PYO_URL = pyo.url;
+    process.env.PYO_TEAM = TEAM;
+    try {
+      delete process.env.PYO_API_KEY;
+      process.env.PYO_TOKEN = API_KEY;
+      expect((await Sandbox.create({ template: "node-22" })).id).toMatch(/^sbx_/);
+      process.env.PYO_API_KEY = API_KEY;
+      process.env.PYO_TOKEN = "pyo_wrong";
+      expect((await Sandbox.create({ template: "node-22" })).id).toMatch(/^sbx_/);
+    } finally {
+      process.env = saved;
+    }
+  });
+
+  it("turns any form of the address into the API base", () => {
+    expect(apiBase("cloud.pyo.dev")).toBe("https://cloud.pyo.dev/api/v1");
+    expect(apiBase("https://cloud.pyo.dev/")).toBe("https://cloud.pyo.dev/api/v1");
+    expect(apiBase(" https://pyo.example.com/api/v1/ ")).toBe("https://pyo.example.com/api/v1");
+    expect(apiBase("http://100.64.0.1:8080")).toBe("http://100.64.0.1:8080/api/v1");
   });
 
   it("explains what's missing", async () => {

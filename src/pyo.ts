@@ -28,6 +28,7 @@ export class PyoApi {
 
   constructor(opts: ClientOptions = {}) {
     const url = opts.baseUrl ?? env("PYO_URL");
+    // PYO_TOKEN, the old name, still works when PYO_API_KEY isn't set.
     const key = opts.apiKey ?? env("PYO_API_KEY") ?? env("PYO_TOKEN");
     if (!url) throw clientError("Set PYO_URL or pass baseUrl: the address of your Pyo.", "missingBaseUrl");
     if (!key) throw clientError("Set PYO_API_KEY or pass apiKey: a Pyo API key with sandbox access.", "missingApiKey");
