@@ -87,19 +87,12 @@ export class PyoApi {
   }
 
   async servers(teamId: string): Promise<SandboxServerInfo[]> {
-    const r = await this.call<{ servers: Array<SandboxServerInfo & { capability?: { runtime?: string } | null }> }>(
+    const r = await this.call<{ servers: Array<SandboxServerInfo & { capability?: unknown }> }>(
       "GET",
       `/sandbox-servers?${new URLSearchParams({ team: teamId })}`,
     );
-    // An older Pyo has the runtime only in the capability report.
-    return r.servers.map(({ capability, ...s }) => {
-      const runtime = s.runtime ?? capability?.runtime ?? null;
-      return {
-        ...s,
-        runtime: runtime === "firecracker" || runtime === "gvisor" ? runtime : null,
-        cloud: s.cloud ?? null,
-      };
-    });
+    // The full capability report stays out: `runtime` and `summary` say it.
+    return r.servers.map(({ capability: _, ...s }) => s);
   }
 
   token(id: string): Promise<Connection> {
