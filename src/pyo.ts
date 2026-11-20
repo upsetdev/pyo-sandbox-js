@@ -122,6 +122,10 @@ export class PyoApi {
   openPort(id: string, port: number, isPublic = true): Promise<{ url: string; port: number; public: boolean }> {
     return this.call("POST", `/sandboxes/${encodeURIComponent(id)}/ports`, { port, public: isPublic });
   }
+
+  closePort(id: string, port: number): Promise<{ port: number; closed: boolean }> {
+    return this.call("DELETE", `/sandboxes/${encodeURIComponent(id)}/ports/${port}`);
+  }
 }
 
 function pyoError(res: Response, text: string): PyoSandboxError {

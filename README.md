@@ -160,6 +160,7 @@ Each call moves at most 64 MiB.
 await sbx.spawn("npx serve -l 3000");
 const url = await sbx.ports.open(3000);                       // public
 const admin = await sbx.ports.open(8080, { public: false });  // needs a sandbox token
+await sbx.ports.close(8080);                                  // stops serving it at its URL
 ```
 
 A private port needs the sandbox token on each request, as `X-Pyo-Token`, or once as `?pyo_token=` in a browser. `sbx.info.ports` lists the open ports with their URLs. A server without an edge proxy refuses with code `conflict`.
@@ -272,7 +273,7 @@ Pass the AI SDK's own `jsonSchema` helper, since this package doesn't import `ai
 
 ## How it talks
 
-- **Pyo** (`/api/v1/sandboxes…`, `Authorization: Bearer pyo_…`): create, connect, list, rename, pause, resume, extend, delete, tokens and ports.
+- **Pyo** (`/api/v1/sandboxes…`, `Authorization: Bearer pyo_…`): create, connect, list, rename, pause, resume, extend, delete, tokens, opening and closing ports, and the team's sandbox servers.
 - **The sandbox server** (`connection.url`, `Authorization: Bearer <sandbox token>`): plain `exec` and files over HTTP under `/v1/sandboxes/{id}`.
 - **The sandbox's WebSocket** (`/v1/sandboxes/{id}/connect`): streaming commands, `spawn`, terminals and port connections. The token goes as the subprotocol `pyo.token.<token>`, next to `pyo`, so it stays out of URLs. A refused connection closes with code 4000 plus the HTTP status (4401, 4403…) and the reason. A terminal keeps working after its token runs out. It speaks envd's frame format, one frame per binary message: `[len u32 BE][kind u8][stream u32 BE][payload]`. envd sends `Hello` on stream 0 first, and the SDK picks the newest protocol version both sides speak. Each command gets its own WebSocket, closed when it ends. The codec is exported as `wire` for other tools.
 

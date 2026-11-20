@@ -342,6 +342,11 @@ export class Sandbox implements Access {
   openPortThroughPyo(port: number, isPublic: boolean): Promise<{ url: string }> {
     return this.needPyo("Opening a port").openPort(this.id, port, isPublic);
   }
+
+  /** @internal */
+  async closePortThroughPyo(port: number): Promise<void> {
+    await this.needPyo("Closing a port").closePort(this.id, port);
+  }
 }
 
 function checkCmd(cmd: Cmd): void {
@@ -441,6 +446,15 @@ export class Ports {
       }
       throw e;
     }
+  }
+
+  /**
+   * Stops serving a port at its URL on the edge proxy. The process in the
+   * sandbox keeps running. Closing a port that isn't open is fine.
+   */
+  async close(port: number): Promise<void> {
+    checkPort(port);
+    await this.sbx.closePortThroughPyo(port);
   }
 
   /**

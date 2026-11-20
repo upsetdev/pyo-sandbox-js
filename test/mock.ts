@@ -522,6 +522,14 @@ export class MockPyo {
     if (req.headers.authorization !== `Bearer ${API_KEY}`) {
       return json(res, 401, { error: "Send a Pyo API key: Authorization: Bearer pyo_…" });
     }
+    const portPath = path.match(/^\/sandboxes\/([^/]+)\/ports\/(\d+)$/);
+    if (portPath && req.method === "DELETE") {
+      const s = this.daemon.sandboxes.get(decodeURIComponent(portPath[1]!));
+      if (!s) return json(res, 404, { error: "Sandbox not found." });
+      const port = Number(portPath[2]);
+      s.ports = s.ports.filter((p) => p.port !== port);
+      return json(res, 200, { port, closed: true });
+    }
     const m = path.match(/^\/sandboxes\/([^/]+)(\/[a-z]+)?$/);
     const sbx = m ? this.daemon.sandboxes.get(decodeURIComponent(m[1]!)) : undefined;
     const key = `${req.method} ${m ? `/sandboxes/{id}${m[2] ?? ""}` : path}`;

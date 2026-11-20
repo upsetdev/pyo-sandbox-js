@@ -318,6 +318,18 @@ describe("ports", () => {
     expect((await rejection(sbx.ports.open(70000))).code).toBe("invalidOptions");
   });
 
+  it("closes a port through Pyo", async () => {
+    pyo.portsRoute = true;
+    const sbx = await create();
+    await sbx.ports.open(3000);
+    await sbx.ports.close(3000);
+    expect(pyo.calls.at(-1)).toMatchObject({ method: "DELETE", path: `/sandboxes/${sbx.id}/ports/3000` });
+    expect((await sbx.getInfo()).ports).toEqual([]);
+    // Closing it again is fine.
+    await sbx.ports.close(3000);
+    expect((await rejection(sbx.ports.close(0))).code).toBe("invalidOptions");
+  });
+
   it("connects to a port through the server", async () => {
     const echo: Server = createServer((s) => s.on("data", (d) => s.write(`echo:${d}`)).on("end", () => s.end()));
     await new Promise<void>((r) => echo.listen(0, "127.0.0.1", r));
